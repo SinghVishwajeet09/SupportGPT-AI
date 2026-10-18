@@ -1,0 +1,28 @@
+{
+  "name": "supportgpt-ai",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=@supportgpt/backend",
+    "dev:frontend": "npm run dev --workspace=@supportgpt/frontend",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "prisma:generate": "npm run prisma:generate --workspace=@supportgpt/backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=@supportgpt/backend",
+    "prisma:seed": "npm run prisma:seed --workspace=@supportgpt/backend"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "allowScripts": {
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "esbuild": true,
+    "prisma": true
+  }
+}

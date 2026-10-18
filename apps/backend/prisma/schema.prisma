@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  AGENT
+  ADMIN
+}
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+enum TicketCategory {
+  BILLING
+  REFUND
+  DELIVERY
+  TECHNICAL_ISSUE
+  ACCOUNT
+  PRODUCT
+  SUBSCRIPTION
+  OTHER
+}
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  FRUSTRATED
+  ANGRY
+  URGENT
+}
+enum ConversationStatus {
+  ACTIVE
+  CLOSED
+}
+enum MessageSenderType {
+  CUSTOMER
+  AGENT
+  AI
+  SYSTEM
+}
+enum TicketMessageKind {
+  MESSAGE
+  INTERNAL_NOTE
+  SYSTEM_EVENT
+  AI_SUGGESTION
+}
+enum DocumentProcessingStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+model User {
+  id              String         @id @default(uuid())
+  name            String
+  email           String         @unique
+  passwordHash    String
+  role            Role           @default(CUSTOMER)
+  avatarUrl       String?
+  isVerified      Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  refreshTokens   RefreshToken[]
+  customerTickets Ticket[]       @relation("CustomerTickets")
+  assignedTickets Ticket[]       @relation("AssignedTickets")
+  conversations   Conversation[]
+  documents       Document[]     @relation("DocumentUploader")
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  feedback        Feedback[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, expiresAt])
+}
+
+model Ticket {
+  id              String         @id @default(uuid())
+  ticketNumber    String         @unique
+  customerId      String
+  assignedAgentId String?
+  subject         String
+  description     String         @db.Text
+  status          TicketStatus   @default(OPEN)
+  priority        TicketPriority @default(MEDIUM)
+  category        TicketCategory @default(OTHER)
+  sentiment       Sentiment      @default(NEUTRAL)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  resolvedAt      DateTime?
+  customer        User           @relation("CustomerTickets", fields: [customerId], references: [id], onDelete: Restrict)
+  assignedAgent   User?          @relation("AssignedTickets", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  messages        TicketMessage[]
+  feedback        Feedback[]
+  @@index([customerId, status])
+  @@index([assignedAgentId, status])
+  @@index([priority, status])
+}
+
+model TicketMessage {
+  id        String            @id @default(uuid())
+  ticketId  String
+  senderId  String?
+  senderType MessageSenderType
+  body      String            @db.Text
+  kind      TicketMessageKind @default(MESSAGE)
+  readAt    DateTime?
+  createdAt DateTime          @default(now())
+  ticket    Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  @@index([ticketId, createdAt])
+}
+
+model Conversation {
+  id         String             @id @default(uuid())
+  customerId String
+  status     ConversationStatus @default(ACTIVE)
+  summary    String?            @db.Text
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  customer   User               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  messages   ConversationMessage[]
+  @@index([customerId, updatedAt])
+}
+
+model ConversationMessage {
+  id             String            @id @default(uuid())
+  conversationId String
+  senderId       String?
+  senderType     MessageSenderType
+  content        String            @db.Text
+  sources        Json?
+  createdAt      DateTime          @default(now())
+  conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  @@index([conversationId, createdAt])
+}
+
+model Document {
+  id               String                   @id @default(uuid())
+  name             String
+  fileType         String
+  fileSize         Int
+  storagePath      String
+  uploadedById     String
+  processingStatus DocumentProcessingStatus @default(PENDING)
+  chunkCount       Int                      @default(0)
+  errorMessage     String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  uploadedBy       User                     @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  @@index([processingStatus, createdAt])
+}
+
+model Feedback {
+  id         String   @id @default(uuid())
+  ticketId   String
+  customerId String
+  rating     Int
+  comment    String?  @db.Text
+  createdAt  DateTime @default(now())
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  customer   User     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  @@unique([ticketId, customerId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String   @db.Text
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, readAt, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  @@index([resource, resourceId, createdAt])
+}
